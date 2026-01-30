@@ -1,18 +1,20 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, clipboard } = require('electron');
+const { app, BrowserWindow, globalShortcut, ipcMain, clipboard, Tray, Menu } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 
 let mainWindow;
+let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 650,
-    height: 450,
-    show: true, // Show on start so user knows it works
+    height: 600, // Increased height for more results
+    show: false,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    skipTaskbar: false, // Taskbar eke pennannam mulin
+    skipTaskbar: false,
+    movable: true,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -25,23 +27,32 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
-    mainWindow.focus();
-  });
-
   mainWindow.on('blur', () => {
-    // Hide on blur only if not in dev mode maybe? 
-    // Actually user might want it to stay until they Esc
-    // mainWindow.hide(); 
+    // We keep it open so user can copy/paste easily, 
+    // but we can hide it via Esc or manual button
   });
 }
 
+function createTray() {
+  // Simple tray icon (using a placeholder if no icon exists)
+  tray = new Tray(electronClipboard.readImage()); // Temporary trick to create a tray if no icon
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show AI Clipboard', click: () => mainWindow.show() },
+    { type: 'separator' },
+    { label: 'Exit', click: () => app.quit() }
+  ]);
+  tray.setToolTip('AI Smart Clipboard');
+  tray.setContextMenu(contextMenu);
+  
+  tray.on('click', () => {
+    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
+  });
+}
 
 app.whenReady().then(() => {
   createWindow();
+  // createTray(); // Enable if you have an icon file
 
-  // Global Shortcut: Alt+Space
   globalShortcut.register('Alt+Space', () => {
     if (mainWindow.isVisible()) {
       mainWindow.hide();
@@ -51,15 +62,15 @@ app.whenReady().then(() => {
     }
   });
 
-  // Clipboard Polling (Pure JS, no compiler needed)
+  // Clipboard Polling
   let lastText = clipboard.readText();
   setInterval(() => {
     const currentText = clipboard.readText();
-    if (currentText !== lastText) {
+    if (currentText && currentText !== lastText) {
       lastText = currentText;
-      mainWindow.webContents.send('clipboard-changed', currentText);
+      if (mainWindow) mainWindow.webContents.send('clipboard-changed', currentText);
     }
-  }, 500);
+  }, 1000);
 });
 
 ipcMain.on('hide-window', () => {
@@ -67,13 +78,19 @@ ipcMain.on('hide-window', () => {
 });
 
 ipcMain.on('smart-paste', () => {
-  // Use PowerShell to trigger Ctrl+V (works on Windows without native modules)
-  const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`;
-  exec(`powershell.exe -Command "${psScript}"`, (error) => {
-    if (error) console.error('Paste error:', error);
-  });
+  // Hide window first to return focus to the previous app
+  mainWindow.hide();
+  
+  // Wait a bit for the previous window to regain focus
+  setTimeout(() => {
+    const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`;
+    exec(`powershell.exe -Command "${psScript}"`, (error) => {
+      if (error) console.error('Paste error:', error);
+    });
+  }, 300);
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, 
@@ -59,7 +59,6 @@ export default function App() {
   });
   const [view, setView] = useState<"actions" | "history">("actions");
   
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem("groq-api-key", apiKey);

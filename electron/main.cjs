@@ -6,17 +6,22 @@ let mainWindow;
 let tray;
 
 function createWindow() {
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 700,
-    x: 1520, // Position on the right like Win+V
-    y: 100,
-    show: false,
+    width: 380,
+    height: 620,
+    x: width - 400, // Position on the right
+    y: height - 640, // Position near bottom
+    show: true, // Show on start so user can confirm it works
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     skipTaskbar: false,
     movable: true,
+    resizable: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -28,7 +33,13 @@ function createWindow() {
     : `file://${path.join(__dirname, '../dist/index.html')}`;
 
   mainWindow.loadURL(startUrl);
+
+  // Focus when shown
+  mainWindow.on('show', () => {
+    mainWindow.focus();
+  });
 }
+
 
 function createTray() {
   // Simple tray icon placeholder

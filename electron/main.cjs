@@ -8,11 +8,11 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 650,
     height: 450,
-    show: false,
+    show: true, // Show on start so user knows it works
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    skipTaskbar: true,
+    skipTaskbar: false, // Taskbar eke pennannam mulin
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -25,10 +25,18 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
+  mainWindow.on('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
   mainWindow.on('blur', () => {
-    mainWindow.hide();
+    // Hide on blur only if not in dev mode maybe? 
+    // Actually user might want it to stay until they Esc
+    // mainWindow.hide(); 
   });
 }
+
 
 app.whenReady().then(() => {
   createWindow();

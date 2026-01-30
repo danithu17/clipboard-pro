@@ -7,8 +7,10 @@ let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 650,
-    height: 600, // Increased height for more results
+    width: 400,
+    height: 700,
+    x: 1520, // Position on the right like Win+V
+    y: 100,
     show: false,
     frame: false,
     transparent: true,
@@ -26,32 +28,22 @@ function createWindow() {
     : `file://${path.join(__dirname, '../dist/index.html')}`;
 
   mainWindow.loadURL(startUrl);
-
-  mainWindow.on('blur', () => {
-    // We keep it open so user can copy/paste easily, 
-    // but we can hide it via Esc or manual button
-  });
 }
 
 function createTray() {
-  // Simple tray icon (using a placeholder if no icon exists)
-  tray = new Tray(electronClipboard.readImage()); // Temporary trick to create a tray if no icon
+  // Simple tray icon placeholder
+  tray = new Tray(clipboard.readImage()); 
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show AI Clipboard', click: () => mainWindow.show() },
+    { label: 'Open AI Clipboard', click: () => { mainWindow.show(); mainWindow.focus(); } },
     { type: 'separator' },
     { label: 'Exit', click: () => app.quit() }
   ]);
   tray.setToolTip('AI Smart Clipboard');
   tray.setContextMenu(contextMenu);
-  
-  tray.on('click', () => {
-    mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-  });
 }
 
 app.whenReady().then(() => {
   createWindow();
-  // createTray(); // Enable if you have an icon file
 
   globalShortcut.register('Alt+Space', () => {
     if (mainWindow.isVisible()) {
@@ -62,13 +54,26 @@ app.whenReady().then(() => {
     }
   });
 
-  // Clipboard Polling
+  // Clipboard Polling for Text, Images, and Files
   let lastText = clipboard.readText();
+  let lastImage = '';
+  
   setInterval(() => {
+    // Check for Text
     const currentText = clipboard.readText();
     if (currentText && currentText !== lastText) {
       lastText = currentText;
-      if (mainWindow) mainWindow.webContents.send('clipboard-changed', currentText);
+      mainWindow.webContents.send('clipboard-changed', { type: 'text', content: currentText });
+    }
+
+    // Check for Image
+    const img = clipboard.readImage();
+    if (!img.isEmpty()) {
+      const currentImage = img.toDataURL();
+      if (currentImage !== lastImage) {
+        lastImage = currentImage;
+        mainWindow.webContents.send('clipboard-changed', { type: 'image', content: currentImage });
+      }
     }
   }, 1000);
 });
@@ -78,10 +83,7 @@ ipcMain.on('hide-window', () => {
 });
 
 ipcMain.on('smart-paste', () => {
-  // Hide window first to return focus to the previous app
   mainWindow.hide();
-  
-  // Wait a bit for the previous window to regain focus
   setTimeout(() => {
     const psScript = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')`;
     exec(`powershell.exe -Command "${psScript}"`, (error) => {
@@ -89,6 +91,16 @@ ipcMain.on('smart-paste', () => {
     });
   }, 300);
 });
+
+ipcMain.on('copy-to-clipboard', (_event, { type, content }) => {
+  if (type === 'text') {
+    clipboard.writeText(content);
+  } else if (type === 'image') {
+    const nativeImg = require('electron').nativeImage.createFromDataURL(content);
+    clipboard.writeImage(nativeImg);
+  }
+});
+
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
